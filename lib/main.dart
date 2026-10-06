@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 void main() {
   runApp(const AIDubbingApp());
@@ -33,6 +34,78 @@ class _DubbingWorkspaceScreenState extends State<DubbingWorkspaceScreen> {
   double _ttsVolume = 100;
   bool _removeVocal = false;
   String _selectedSpeaker = 'sreymom';
+
+  String? _videoFileName;
+  String? _srtFileName;
+  bool _isProcessing = false;
+
+  // មុខងាររើស File វីដេអូពីទូរស័ព្ទ
+  Future<void> _pickVideoFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.video,
+    );
+
+    if (result != null && result.files.single.name.isNotEmpty) {
+      setState(() {
+        _videoFileName = result.files.single.name;
+      });
+    }
+  }
+
+  // មុខងាររើស File SRT ពីទូរស័ព្ទ
+  Future<void> _pickSrtFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+    );
+
+    if (result != null && result.files.single.name.isNotEmpty) {
+      setState(() {
+        _srtFileName = result.files.single.name;
+      });
+    }
+  }
+
+  // មុខងារពេលចុចប៊ូតុង "ចាប់ផ្តើមបកប្រែ"
+  void _startDubbing() {
+    if (_videoFileName == null || _srtFileName == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text('សូមជ្រើសរើសវីដេអូ និងឯកសារ SRT ជាមុនសិន!'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    // ក្លែងធ្វើដំណើរការបកប្រែ
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF1A1D2B),
+            title: const Text('ជោគជ័យ!', style: TextStyle(color: Colors.cyanAccent)),
+            content: Text(
+              'បានបញ្ចូលសំឡេង (${_selectedSpeaker == "sreymom" ? "ស្រីមុំ" : "ពិសិដ្ឋ"}) ទៅក្នុង $_videoFileName ដោយជោគជ័យ!',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('យល់ព្រម', style: TextStyle(color: Colors.cyanAccent)),
+              ),
+            ],
+          ),
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,8 +150,9 @@ class _DubbingWorkspaceScreenState extends State<DubbingWorkspaceScreen> {
             _buildSelectionCard(
               icon: Icons.video_file,
               title: 'វីដេអូដើម (Original Video)',
-              subtitle: 'មិនទាន់ជ្រើសរើសវីដេអូនៅឡើយទេ',
-              onTap: () {},
+              subtitle: _videoFileName ?? 'មិនទាន់ជ្រើសរើសវីដេអូនៅឡើយទេ',
+              isChosen: _videoFileName != null,
+              onTap: _pickVideoFile,
             ),
             const SizedBox(height: 12),
 
@@ -86,8 +160,9 @@ class _DubbingWorkspaceScreenState extends State<DubbingWorkspaceScreen> {
             _buildSelectionCard(
               icon: Icons.subtitles,
               title: 'ឯកសារអក្សររត់ (SRT Subtitles)',
-              subtitle: 'មិនទាន់ជ្រើសរើសឯកសារ SRT នៅឡើយ...',
-              onTap: () {},
+              subtitle: _srtFileName ?? 'មិនទាន់ជ្រើសរើសឯកសារ SRT នៅឡើយ...',
+              isChosen: _srtFileName != null,
+              onTap: _pickSrtFile,
             ),
             const SizedBox(height: 16),
 
@@ -205,16 +280,14 @@ class _DubbingWorkspaceScreenState extends State<DubbingWorkspaceScreen> {
                     side: const BorderSide(color: Colors.cyanAccent, width: 0.8),
                   ),
                 ),
-                icon: const Icon(Icons.bolt, color: Colors.cyanAccent),
-                label: const Text(
-                  'ចាប់ផ្តើមបកប្រែ (Generate Dubbed Video)',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                icon: _isProcessing 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.cyanAccent))
+                    : const Icon(Icons.bolt, color: Colors.cyanAccent),
+                label: Text(
+                  _isProcessing ? 'កំពុងដំណើរការ...' : 'ចាប់ផ្តើមបកប្រែ (Generate Dubbed Video)',
+                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('កំពុងចាប់ផ្តើមដំណើរការ...')),
-                  );
-                },
+                onPressed: _isProcessing ? null : _startDubbing,
               ),
             ),
           ],
@@ -227,6 +300,7 @@ class _DubbingWorkspaceScreenState extends State<DubbingWorkspaceScreen> {
     required IconData icon,
     required String title,
     required String subtitle,
+    required bool isChosen,
     required VoidCallback onTap,
   }) {
     return Card(
@@ -234,11 +308,17 @@ class _DubbingWorkspaceScreenState extends State<DubbingWorkspaceScreen> {
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(10)),
-          child: Icon(icon, color: Colors.cyanAccent),
+          decoration: BoxDecoration(
+            color: isChosen ? Colors.cyanAccent.withOpacity(0.2) : Colors.white10,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: isChosen ? Colors.cyanAccent : Colors.white70),
         ),
         title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white54)),
+        subtitle: Text(
+          subtitle, 
+          style: TextStyle(fontSize: 12, color: isChosen ? Colors.greenAccent : Colors.white54),
+        ),
         trailing: const Icon(Icons.chevron_right, color: Colors.white38),
         onTap: onTap,
       ),

@@ -21,10 +21,16 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Create Flutter Project Skeleton
+      - name: Recreate Flutter Project Skeleton
         run: |
+          mkdir temp_lib
+          cp -r lib/* temp_lib/
           flutter create --org com.example.aidubbing .
+          rm -rf lib/*
+          cp -r temp_lib/* lib/
+          rm -rf temp_lib
           rm -rf test
+          flutter pub add file_picker http
 
       - name: Build APK
         run: flutter build apk --release
